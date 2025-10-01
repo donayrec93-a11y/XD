@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}Boleta #{{ cab[0] }} · Lavandería RÍOS{% endblock %}
+{% block content %}
+<section class="card" id="boleta" role="region" aria-label="Detalle de boleta">
+  <h2>Boleta creada</h2>
+  <div class="resume" style="margin-bottom:10px;">
+    <strong>Cliente:</strong> {{ cab[2] }} ·
+    <strong>Tel:</strong> {{ cab[4] or '-' }} ·
+    <strong>Dirección:</strong> {{ cab[3] or LAVA_DIRECCION }}<br>
+    <strong>Fecha:</strong> {{ cab[5][:16] }} ·
+    <strong>Entrega:</strong> {{ (cab[6] or '-') ~ ' ' ~ (cab[7] or '') }} ·
+    <strong>Método:</strong> {{ cab[8] }} ·
+    <strong>Estado:</strong> {{ cab[9] }}
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Descripción</th><th>Tipo</th><th>Cantidad</th>
+          <th>Lavado</th><th>Perfumado</th><th>P. Unit</th><th>Importe</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td>{{ it[1] }}</td>
+          <td>{{ it[2] }}</td>
+          <td>{{ it[3] }}</td>
+          <td>{{ it[4] }}</td>
+          <td>{{ '✓' if it[7] else '✗' }}</td>
+          <td>{{ '%.2f'|format(it[5]) }}</td>
+          <td>{{ '%.2f'|format(it[6]) }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <td colspan="7" style="text-align:right;"><strong>Total</strong></td>
+          <td><strong>{{ '%.2f'|format(cab[12]) }}</strong></td>
+        </tr>
+        <tr>
+          <td colspan="7" style="text-align:right;">A cuenta</td>
+          <td>{{ '%.2f'|format(cab[10]) }}</td>
+        </tr>
+        <tr>
+          <td colspan="7" style="text-align:right;">Saldo</td>
+          <td>{{ '%.2f'|format(cab[11]) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="muted" style="margin-top:8px;">{{ cab[13] }}</p>
+
+  <div class="form-actions">
+    <!-- Botones de WhatsApp -->
+    <button class="btn" id="waTextBtn">🟢 Enviar texto</button>
+    <button class="btn" id="waImageBtn">📷 Enviar imagen</button>
+    <button class="btn" id="waPdfBtn">� Enviar PDF</button>
+    
+    <!-- Botones adicionales -->
+    <button class="btn secondary" id="printButton">🖨️ Imprimir boleta</button>
+    <a class="btn secondary" href="{{ url_for('boleta_nueva') }}">➕ Nueva boleta</a>
+  </div>
+</section>
+
+<!-- Librerías necesarias -->
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<script>
+  // Función para generar imagen de la boleta
+  async function generateBoletaImage() {
+    const element = document.getElementById("boleta");
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      return canvas.toDataURL('image/jpeg', 0.8);
+    } catch (error) {
+      console.error('Error generando imagen:', error);
+      return null;
+    }
+  }
+
+  // Función para manejar la impresión y generación de imagen de la boleta
+  async function generateResumenBoleta() {
+    const content = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: white;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h1 style="margin: 0; color: #2C5282;">Lavandería RÍOS</h1>
+          <p style="margin: 5px 0; color: #4A5568;">Ropa limpia, clientes felices</p>
+        </div>
+        <div style="margin-bottom: 20px; padding: 15px; background: #F7FAFC; border-radius: 4px;">
+          <p style="margin: 5px 0;"><strong>Cliente:</strong> {{ cab[2] }}</p>
+          <p style="margin: 5px 0;"><strong>Tel:</strong> {{ cab[4] or '-' }}</p>
+          <p style="margin: 5px 0;"><strong>Dirección:</strong> {{ cab[3] or LAVA_DIRECCION }}</p>
+          <p style="margin: 5px 0;"><strong>Fecha:</strong> {{ cab[5][:16] }}</p>
+          <p style="margin: 5px 0;"><strong>Entrega:</strong> {{ (cab[6] or '-') ~ ' ' ~ (cab[7] or '') }}</p>
+          <p style="margin: 5px 0;"><strong>Método:</strong> {{ cab[8] }}</p>
+        </div>
+        ${document.querySelector('.table-wrap').outerHTML.replace(/<table/, '<table style="width: 100%; border-collapse: collapse; margin-top: 20px;"').replace(/<th/g, '<th style="background-color: #EDF2F7; color: #2D3748; padding: 12px; text-align: left; border: 1px solid #E2E8F0;"').replace(/<td/g, '<td style="padding: 12px; border: 1px solid #E2E8F0;"')}
+        <div style="margin-top: 20px; padding: 10px; background-color: #F7FAFC; border-radius: 4px;">
+          <p style="margin: 5px 0; color: #4A5568;">${document.querySelector('.muted')?.innerText || ''}</p>
+        </div>
+        <div style="margin-top: 20px; text-align: center;">
+          <p style="color: #4A5568; font-size: 14px;">¡Gracias por su preferencia!</p>
+          <p style="color: #4A5568; font-size: 12px;">{{ LAVA_DIRECCION }}</p>
+        </div>
+      </div>
+    `;
+    return content;
+  }
+
+  // Función para imprimir
+  document.getElementById("printButton").addEventListener("click", async function() {
+    const content = await generateResumenBoleta();
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Boleta #{{ cab[0] }} · Lavandería RÍOS</title>
+          <style>
+            @media print {
+              body { margin: 0; }
+              @page { size: A4; margin: 15mm; }
+            }
+          </style>
+        </head>
+        <body>${content}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    setTimeout(() => printWindow.close(), 1000);
+  });
+
+  // Función para obtener el número de WhatsApp normalizado
+  function getWhatsAppNumber() {
+    const clientPhone = '{{ cab[4] }}'.trim();
+    if (!clientPhone) return '{{ WHATSAPP_NUMBER }}';
+    
+    // Normalizar el número
+    let number = clientPhone.replace(/\D/g, '');
+    if (!number.startsWith('51')) {
+      number = '51' + number;
+    }
+    return number;
+  }
+
+  // Función para generar el mensaje de WhatsApp
+  function getWhatsAppMessage(tipo = '') {
+    return `Hola {{ cab[2] }}, aquí está tu boleta de Lavandería RÍOS.
+Total: S/ {{ '%.2f'|format(cab[12]) }}
+A cuenta: S/ {{ '%.2f'|format(cab[10]) }}
+Saldo: S/ {{ '%.2f'|format(cab[11]) }}
+
+${tipo ? `Por favor, envía ${tipo} que acabas de descargar.` : ''}
+¡Gracias por tu preferencia! 🌟`;
+  }
+
+  // Enviar texto por WhatsApp
+  document.getElementById('waTextBtn').addEventListener('click', function() {
+    const phone = getWhatsAppNumber();
+    const message = getWhatsAppMessage();
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+  });
+
+  // Enviar imagen por WhatsApp
+  document.getElementById('waImageBtn').addEventListener('click', async function() {
+    this.disabled = true;
+    this.textContent = '⌛ Generando imagen...';
+    
+    try {
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.top = '-9999px';
+      container.innerHTML = await generateResumenBoleta();
+      document.body.appendChild(container);
+
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: 800,
+        windowWidth: 800
+      });
+
+      document.body.removeChild(container);
+
+      // Descargar imagen
+      const imageData = canvas.toDataURL('image/jpeg', 0.9);
+      const a = document.createElement('a');
+      a.href = imageData;
+      a.download = `boleta-{{ cab[0] }}-{{ cab[2] }}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Abrir WhatsApp
+      const phone = getWhatsAppNumber();
+      const message = getWhatsAppMessage('la imagen');
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Hubo un error al generar la imagen. Por favor, intenta nuevamente.');
+    } finally {
+      this.disabled = false;
+      this.textContent = '📷 Enviar imagen';
+    }
+  });
+
+  // Enviar PDF por WhatsApp
+  document.getElementById('waPdfBtn').addEventListener('click', async function() {
+    this.disabled = true;
+    this.textContent = '⌛ Generando PDF...';
+    
+    try {
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.top = '-9999px';
+      container.innerHTML = await generateResumenBoleta();
+      document.body.appendChild(container);
+
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: 800,
+        windowWidth: 800
+      });
+
+      document.body.removeChild(container);
+
+      // Crear PDF
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+
+      pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`boleta-{{ cab[0] }}-{{ cab[2] }}.pdf`);
+
+      // Abrir WhatsApp
+      const phone = getWhatsAppNumber();
+      const message = getWhatsAppMessage('el PDF');
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Hubo un error al generar el PDF. Por favor, intenta nuevamente.');
+    } finally {
+      this.disabled = false;
+      this.textContent = '📄 Enviar PDF';
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Boletas · Lavandería RÍOS{% endblock %}
+{% block content %}
+<section class="card" role="region" aria-label="Listado de boletas">
+  <h2>Boletas</h2>
+
+  <form class="filters" method="get">
+    <input type="text" name="cliente" placeholder="Cliente" value="{{ filtros.cliente }}" />
+    <input type="date" name="desde" value="{{ filtros.desde }}" />
+    <input type="date" name="hasta" value="{{ filtros.hasta }}" />
+    <button class="btn" type="submit">Filtrar</button>
+    <a class="btn secondary" href="{{ url_for('boletas') }}">Limpiar</a>
+    <a class="btn" href="{{ url_for('export_csv') }}">⬇️ Exportar CSV</a>
+  </form>
+
+  <div class="resume">
+    Total del período: <strong>S/ {{ '%.2f'|format(total_periodo) }}</strong>
+  </div>
+
+  <div class="table-wrap">
+    <table role="table" aria-label="Tabla de boletas">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>FECHA</th>
+          <th>CLIENTE</th>
+          <th>LAVADO</th>
+          <th>PERFUMADO</th>
+          <th>MÉTODO</th>
+          <th>ESTADO</th>
+          <th>PRECIO</th>
+          <th>ACCIONES</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in filas %}
+          <tr>
+            <td>{{ b[0] }}</td>
+            <td>{{ b[8] }}</td>
+            <td>{{ b[1] }}</td>
+            <td>{{ b[5] }}</td>
+            <td>{{ '✨ Sí' if b[6]==1 else '❌ No' }}</td>
+            <td>{{ b[9] }}</td>
+            <td>{{ b[10] }}</td>
+            <td>{{ '%.2f'|format(b[7]) }}</td>
+            <td>
+              <a href="{{ url_for('boleta_detalle', boleta_id=b[0]) }}" class="btn">🔍 Ver resumen</a>
+              <a href="javascript:void(0);" class="btn secondary" onclick='printBoleta("{{ url_for("boleta_detalle", boleta_id=b[0]) }}");'>🖨️ Imprimir</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="9" style="text-align:center;">SIN RESULTADOS</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pagination">
+    {% if pagina > 1 %}
+      <a class="btn" href="{{ url_for('boletas', page=pagina-1, cliente=filtros.cliente, desde=filtros.desde, hasta=filtros.hasta) }}">⬅️ Anterior</a>
+    {% endif %}
+    <span>Página {{ pagina }} de {{ total_paginas }}</span>
+    {% if pagina < total_paginas %}
+      <a class="btn" href="{{ url_for('boletas', page=pagina+1, cliente=filtros.cliente, desde=filtros.desde, hasta=filtros.hasta) }}">Siguiente ➡️</a>
+    {% endif %}
+  </div>
+</section>
+
+<!-- Agregar html2canvas para generar imágenes -->
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+
+<script>
+  // Función de impresión para abrir la boleta en una nueva ventana
+  function printBoleta(boletaUrl) {
+    var printWindow = window.open(boletaUrl, '_blank', 'width=800,height=600');
+    printWindow.onload = function() {
+      printWindow.print();
+    };
+  }
+
+  // Función para generar y compartir imagen por WhatsApp
+  async function shareWhatsApp(row, cliente, total, fecha) {
+    try {
+      // Crear un contenedor temporal con estilo mejorado
+      const container = document.createElement('div');
+      container.style.cssText = 'background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; margin: 20px auto; font-family: Arial, sans-serif;';
+      
+      // Contenido del resumen
+      container.innerHTML = `
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #2C5282; margin: 0;">Lavandería RÍOS</h2>
+          <p style="color: #4A5568; margin: 5px 0;">Ropa limpia, clientes felices</p>
+        </div>
+        <div style="margin: 15px 0; padding: 15px; background: #F7FAFC; border-radius: 4px;">
+          <p style="margin: 5px 0;"><strong>Cliente:</strong> ${cliente}</p>
+          <p style="margin: 5px 0;"><strong>Fecha:</strong> ${fecha}</p>
+          <p style="margin: 5px 0;"><strong>Total:</strong> S/ ${total.toFixed(2)}</p>
+          <p style="margin: 5px 0;"><strong>Estado:</strong> ${row.children[6].textContent}</p>
+          ${row.children[4].textContent.includes('✨') ? '<p style="margin: 5px 0;">✨ Servicio con perfumado</p>' : ''}
+        </div>
+        <div style="text-align: center; margin-top: 15px; color: #4A5568; font-size: 12px;">
+          <p>{{ LAVA_DIRECCION }}</p>
+        </div>
+      `;
+
+      // Agregar temporalmente al documento
+      document.body.appendChild(container);
+
+      // Generar imagen
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+
+      // Eliminar el contenedor temporal
+      document.body.removeChild(container);
+
+      // Convertir a imagen y descargar
+      const imageData = canvas.toDataURL('image/jpeg', 0.8);
+      const a = document.createElement('a');
+      a.href = imageData;
+      a.download = `boleta-${cliente}-${fecha}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Abrir WhatsApp
+      const message = `Hola ${cliente}, aquí está el resumen de tu servicio en Lavandería RÍOS. Por favor, envía la imagen que acabas de descargar. ¡Gracias por tu preferencia! 🌟`;
+      window.open(`https://wa.me/{{ WHATSAPP_NUMBER }}?text=${encodeURIComponent(message)}`, '_blank');
+
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Hubo un error al generar la imagen. Por favor, intenta nuevamente.');
+    }
+  }
+</script>
+{% endblock %}

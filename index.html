@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Inicio · Lavandería RÍOS{% endblock %}
+{% block content %}
+  <section class="hero card" role="region" aria-label="Bienvenida">
+    <h1>Bienvenido, Cristian 👋</h1>
+    <p class="lead">
+      Administra tus boletas, registra servicios por kilos, edredones y ternos,
+      y mantén tu flujo de caja bajo control.
+    </p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+      <a class="btn" href="{{ url_for('boletas') }}">📄 Ver boletas</a>
+    </div>
+  </section>
+{% endblock %}
